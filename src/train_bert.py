@@ -83,7 +83,9 @@ def main():
     test_df = pd.read_csv(PROCESSED_DIR / "urls_test.csv")
 
     # *** WICHTIG: Train-Set verkleinern ***
-    N_TRAIN = 20000  # hier kannst du später z.B. 50000 eintragen
+    #N_TRAIN = 20000 #CPU
+    N_TRAIN = 100000 #GPU
+   
     if len(train_df) > N_TRAIN:
         train_df = train_df.sample(n=N_TRAIN, random_state=42).reset_index(drop=True)
     print(f"[+] Train-Samples für BERT: {len(train_df)}")
@@ -98,12 +100,14 @@ def main():
     train_ds = URLDataset(train_df, tokenizer, max_len=64)
     test_ds = URLDataset(test_df, tokenizer, max_len=64)
 
-    train_dl = DataLoader(train_ds, batch_size=16, shuffle=True)
+    #train_dl = DataLoader(train_ds, batch_size=16, shuffle=True)
+    train_dl = DataLoader(train_ds, batch_size=32, shuffle=True) # GPU
     test_dl = DataLoader(test_ds, batch_size=64)
 
     optimizer = AdamW(model.parameters(), lr=2e-5)
 
-    EPOCHS = 1  # auf CPU erstmal nur 1 Epoche
+    #EPOCHS = 1  # auf CPU erstmal nur 1 Epoche
+    EPOCHS = 2 # auf GPU 2 Epochen
     model.train()
 
     for epoch in range(EPOCHS):

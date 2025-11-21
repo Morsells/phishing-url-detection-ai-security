@@ -98,9 +98,10 @@ def main():
     test_feat = pd.read_csv(test_feat_path)
 
     # für Hybrid-Experiment: Größe begrenzen (CPU-freundlich)
-    N_TRAIN = 20000
-    N_TEST = 50000
-
+    #N_TRAIN = 20000
+    N_TRAIN = 100000
+    #N_TEST = 50000
+    N_TEST = 100000
     if len(train_feat) > N_TRAIN:
         train_feat = train_feat.sample(n=N_TRAIN, random_state=42).reset_index(drop=True)
     if len(test_feat) > N_TEST:
