@@ -1,28 +1,67 @@
 from pathlib import Path
 import json
+import random
+from typing import Dict, Any, Tuple, List
+from datetime import datetime
+
+import numpy as np
+import pandas as pd
 import torch
 from torch.utils.data import Dataset, DataLoader
 from torch.optim import AdamW
 from transformers import DistilBertTokenizerFast, DistilBertForSequenceClassification
-from sklearn.metrics import accuracy_score, f1_score, roc_auc_score, average_precision_score
-import pandas as pd
+from sklearn.metrics import (
+    accuracy_score,
+    f1_score,
+    precision_score,
+    recall_score,
+    roc_auc_score,
+    average_precision_score,
+    matthews_corrcoef,
+    confusion_matrix,
+)
 from tqdm import tqdm
 
+
+# -----------------------------
+# Config
+# -----------------------------
+SEED = 42
+MAX_LEN = 64
+N_TRAIN = 20000          # adjust for experiments, e.g. 50000
+TRAIN_BS = 16
+TEST_BS = 64
+LR = 2e-5
+EPOCHS = 1
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 PROCESSED_DIR = BASE_DIR / "data" / "processed"
 RESULTS_DIR = BASE_DIR / "results" / "metrics"
-BERT_DIR = BASE_DIR / "models" / "bert"
+
+# Save into a fresh run directory to avoid Windows file locking issues
+run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+BERT_DIR = BASE_DIR / "models" / "bert" / f"run_{run_id}"
 
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 BERT_DIR.mkdir(parents=True, exist_ok=True)
 
 
+def set_global_seed(seed: int) -> None:
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+    # Determinism (best-effort; may reduce performance)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+
 class URLDataset(Dataset):
-    def __init__(self, df, tokenizer, max_len=64):
-        # max_len 64 statt 128 -> schneller
+    def __init__(self, df: pd.DataFrame, tokenizer, max_len: int = 64):
         self.urls = df["url"].astype(str).tolist()
-        self.labels = df["label"].tolist()
+        self.labels = df["label"].astype(int).tolist()
         self.tokenizer = tokenizer
         self.max_len = max_len
 
@@ -43,51 +82,80 @@ class URLDataset(Dataset):
         )
 
         return {
-            "input_ids": enc["input_ids"].squeeze(),
-            "attention_mask": enc["attention_mask"].squeeze(),
+            "input_ids": enc["input_ids"].squeeze(0),
+            "attention_mask": enc["attention_mask"].squeeze(0),
             "label": torch.tensor(label, dtype=torch.long),
         }
 
 
-def evaluate(model, dataloader, device):
+@torch.no_grad()
+def evaluate(model, dataloader, device: str) -> Tuple[Dict[str, float], Dict[str, Any]]:
     model.eval()
-    preds, probs, labels = [], [], []
 
-    with torch.no_grad():
-        for batch in dataloader:
-            input_ids = batch["input_ids"].to(device)
-            mask = batch["attention_mask"].to(device)
-            label = batch["label"].to(device)
+    preds: List[int] = []
+    probs: List[float] = []
+    labels: List[int] = []
 
-            out = model(input_ids, attention_mask=mask)
-            logits = out.logits
-            prob = torch.softmax(logits, dim=1)[:, 1]
+    for batch in dataloader:
+        input_ids = batch["input_ids"].to(device)
+        mask = batch["attention_mask"].to(device)
+        y = batch["label"].to(device)
 
-            preds.extend(torch.argmax(logits, dim=1).cpu().tolist())
-            probs.extend(prob.cpu().tolist())
-            labels.extend(label.cpu().tolist())
+        out = model(input_ids, attention_mask=mask)
+        logits = out.logits
+        prob_1 = torch.softmax(logits, dim=1)[:, 1]
 
-    return {
-        "accuracy": accuracy_score(labels, preds),
-        "f1": f1_score(labels, preds),
-        "roc_auc": roc_auc_score(labels, probs),
-        "pr_auc": average_precision_score(labels, probs),
+        preds.extend(torch.argmax(logits, dim=1).cpu().tolist())
+        probs.extend(prob_1.cpu().tolist())
+        labels.extend(y.cpu().tolist())
+
+    acc = accuracy_score(labels, preds)
+    prec = precision_score(labels, preds, zero_division=0)
+    rec = recall_score(labels, preds, zero_division=0)
+    f1 = f1_score(labels, preds, zero_division=0)
+    mcc = matthews_corrcoef(labels, preds)
+    roc = roc_auc_score(labels, probs)
+    pr = average_precision_score(labels, probs)
+    cm = confusion_matrix(labels, preds).tolist()
+
+    metrics = {
+        "accuracy": float(acc),
+        "precision": float(prec),
+        "recall": float(rec),
+        "f1": float(f1),
+        "mcc": float(mcc),
+        "roc_auc": float(roc),
+        "pr_auc": float(pr),
     }
+
+    extras = {
+        "confusion_matrix": cm,  # [[tn, fp],[fn, tp]]
+    }
+
+    return metrics, extras
 
 
 def main():
+    set_global_seed(SEED)
+
     device = "cuda" if torch.cuda.is_available() else "cpu"
+    use_fp16 = (device == "cuda")  # fp16 only on CUDA
     print(f"[+] Using device: {device}")
 
-    train_df = pd.read_csv(PROCESSED_DIR / "urls_train.csv")
-    test_df = pd.read_csv(PROCESSED_DIR / "urls_test.csv")
+    train_path = PROCESSED_DIR / "urls_train.csv"
+    test_path = PROCESSED_DIR / "urls_test.csv"
+    if not train_path.exists() or not test_path.exists():
+        raise FileNotFoundError("Missing processed split files. Run `python src/data_loading.py` first.")
 
-    # *** WICHTIG: Train-Set verkleinern ***
-    N_TRAIN = 20000  # hier kannst du später z.B. 50000 eintragen
+    train_df = pd.read_csv(train_path)
+    test_df = pd.read_csv(test_path)
+
+    # Train subset for faster runs
     if len(train_df) > N_TRAIN:
-        train_df = train_df.sample(n=N_TRAIN, random_state=42).reset_index(drop=True)
+        train_df = train_df.sample(n=N_TRAIN, random_state=SEED).reset_index(drop=True)
+
     print(f"[+] Train-Samples für BERT: {len(train_df)}")
-    print(f"[+] Test-Samples (voll):      {len(test_df)}")
+    print(f"[+] Test-Samples:           {len(test_df)}")
 
     tokenizer = DistilBertTokenizerFast.from_pretrained("distilbert-base-uncased")
     model = DistilBertForSequenceClassification.from_pretrained(
@@ -95,48 +163,83 @@ def main():
     )
     model.to(device)
 
-    train_ds = URLDataset(train_df, tokenizer, max_len=64)
-    test_ds = URLDataset(test_df, tokenizer, max_len=64)
+    train_ds = URLDataset(train_df, tokenizer, max_len=MAX_LEN)
+    test_ds = URLDataset(test_df, tokenizer, max_len=MAX_LEN)
 
-    train_dl = DataLoader(train_ds, batch_size=16, shuffle=True)
-    test_dl = DataLoader(test_ds, batch_size=64)
+    # Reproducible shuffling
+    g = torch.Generator()
+    g.manual_seed(SEED)
 
-    optimizer = AdamW(model.parameters(), lr=2e-5)
+    train_dl = DataLoader(train_ds, batch_size=TRAIN_BS, shuffle=True, generator=g)
+    test_dl = DataLoader(test_ds, batch_size=TEST_BS, shuffle=False)
 
-    EPOCHS = 1  # auf CPU erstmal nur 1 Epoche
+    optimizer = AdamW(model.parameters(), lr=LR)
+
+    # Use the non-deprecated AMP API (only enabled on CUDA)
+    scaler = torch.amp.GradScaler("cuda", enabled=use_fp16)
+
     model.train()
-
     for epoch in range(EPOCHS):
         print(f"\n===== Epoch {epoch + 1}/{EPOCHS} =====")
         loop = tqdm(train_dl, total=len(train_dl))
 
         for batch in loop:
-            optimizer.zero_grad()
+            optimizer.zero_grad(set_to_none=True)
 
             input_ids = batch["input_ids"].to(device)
             mask = batch["attention_mask"].to(device)
             labels = batch["label"].to(device)
 
-            out = model(input_ids, attention_mask=mask, labels=labels)
-            loss = out.loss
+            with torch.amp.autocast("cuda", enabled=use_fp16):
+                out = model(input_ids, attention_mask=mask, labels=labels)
+                loss = out.loss
 
-            loss.backward()
-            optimizer.step()
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
 
             loop.set_description(f"Loss: {loss.item():.4f}")
 
-    metrics = evaluate(model, test_dl, device)
+    metrics, extras = evaluate(model, test_dl, device)
 
     print("\n===== BERT Metrics =====")
     for k, v in metrics.items():
         print(f"{k}: {v:.4f}")
+    print(f"confusion_matrix [[tn, fp],[fn,tp]]: {extras['confusion_matrix']}")
 
-    model.save_pretrained(BERT_DIR)
+    # Save model + tokenizer
+    # Workaround for Windows safetensors I/O errors: save as PyTorch .bin instead of .safetensors
+    model.save_pretrained(BERT_DIR, safe_serialization=False)
     tokenizer.save_pretrained(BERT_DIR)
 
+    payload = {
+        "meta": {
+            "seed": SEED,
+            "device": device,
+            "fp16": bool(use_fp16),
+            "max_len": MAX_LEN,
+            "n_train_sampled": int(len(train_df)),
+            "n_test": int(len(test_df)),
+            "positive_rate_train": float(train_df["label"].mean()),
+            "positive_rate_test": float(test_df["label"].mean()),
+            "train_batch_size": TRAIN_BS,
+            "test_batch_size": TEST_BS,
+            "learning_rate": LR,
+            "epochs": EPOCHS,
+            "base_model": "distilbert-base-uncased",
+            "bert_dir": str(BERT_DIR),
+            "safe_serialization": False,
+            "note": "Fine-tuned DistilBERT on URL strings for phishing classification",
+        },
+        "metrics": {
+            **metrics,
+            **extras,
+        },
+    }
+
     out_path = RESULTS_DIR / "bert_results.json"
-    with open(out_path, "w") as f:
-        json.dump(metrics, f, indent=4)
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2)
 
     print(f"[+] Saved BERT model to {BERT_DIR}")
     print(f"[+] Saved metrics to {out_path}")

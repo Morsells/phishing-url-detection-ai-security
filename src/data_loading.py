@@ -11,8 +11,10 @@ PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
 def load_github_dataset() -> pd.DataFrame:
     """
     Lädt phishing_site_urls_github.csv und normalisiert Spalten:
-    - 'URL'  -> 'url'
+    - 'URL'   -> 'url'
     - 'Label' -> 'label' (0=good, 1=bad)
+
+    WICHTIG: Entfernt Duplikate auf URL-Ebene, um Train/Test-Leakage zu vermeiden.
     """
     csv_path = RAW_DIR / "phishing_site_urls_github.csv"
     print(f"[+] Lade GitHub-Datensatz: {csv_path}")
@@ -39,6 +41,14 @@ def load_github_dataset() -> pd.DataFrame:
     print(f"    Zeilen vor Filter: {before}, nach Filter: {after}")
     print(df["label"].value_counts())
 
+    # -----------------------------
+    # Dedup (gegen Train/Test-Leakage)
+    # -----------------------------
+    before_dups = len(df)
+    df = df.drop_duplicates(subset=["url"], keep="first").reset_index(drop=True)
+    after_dups = len(df)
+    print(f"    Duplikate entfernt: {before_dups - after_dups} (von {before_dups} auf {after_dups})")
+
     df["source"] = "github"
 
     return df
@@ -63,7 +73,6 @@ def load_openphish_dataset() -> pd.DataFrame:
     return df
 
 
-
 def make_splits(
     github_df: pd.DataFrame,
     openphish_df: pd.DataFrame,
@@ -72,10 +81,9 @@ def make_splits(
 ):
     """
     Train/Test-Split:
-    - Train:   train_frac der GitHub-Daten (stratifiziert)
-    - Test:    Rest der GitHub-Daten + ALLE OpenPhish-URLs
+    - Train:  train_frac der GitHub-Daten (stratifiziert)
+    - Test:   Rest der GitHub-Daten + ALLE OpenPhish-URLs
     """
-
     print("[+] Erzeuge Train/Test-Split aus GitHub-Datensatz")
 
     g_train, g_test = train_test_split(
@@ -89,6 +97,10 @@ def make_splits(
     g_test = g_test.reset_index(drop=True)
 
     print(f"    GitHub Train: {len(g_train)}, GitHub Test: {len(g_test)}")
+
+    # Optionaler Sanity-Check: Nach Dedup sollte Overlap 0 sein
+    overlap = set(g_train["url"]).intersection(set(g_test["url"]))
+    print(f"    URL-Overlap Train/Test (GitHub): {len(overlap)}")
 
     # Test enthält GitHub-Test + alle OpenPhish-Phishing-URLs
     test = pd.concat([g_test, openphish_df], ignore_index=True)
