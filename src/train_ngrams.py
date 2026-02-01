@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 from pathlib import Path
 import json
 import random
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Tuple
 
 import numpy as np
 import pandas as pd
@@ -21,49 +23,91 @@ from sklearn.metrics import (
 from sklearn.pipeline import Pipeline
 
 
-# -----------------------------
-# Config
-# -----------------------------
+# ============================================================
+# Konfiguration
+# ============================================================
 SEED = 42
 
-TRAIN_PATH = "data/processed/urls_train.csv"
-TEST_PATH = "data/processed/urls_test.csv"
-OUT_METRICS_PATH = "results/metrics/ngram_results.json"
+BASE_DIR = Path(__file__).resolve().parent.parent
+TRAIN_PATH = BASE_DIR / "data" / "processed" / "urls_train.csv"
+TEST_PATH = BASE_DIR / "data" / "processed" / "urls_test.csv"
+OUT_METRICS_PATH = BASE_DIR / "results" / "metrics" / "ngram_results.json"
 
-# Char n-gram baseline settings
-NGRAM_RANGE = (2, 3)
+# Char-n-gram Baseline
+NGRAM_RANGE: Tuple[int, int] = (2, 3)
 MIN_DF = 2
 
-# Logistic Regression settings
+# Logistic Regression
 MAX_ITER = 2000
 SOLVER = "liblinear"
 CLASS_WEIGHT = "balanced"
 
 
-def set_global_seed(seed: int = 42) -> None:
+# ============================================================
+# Hilfsfunktionen
+# ============================================================
+def set_global_seed(seed: int) -> None:
+    """Setzt Seeds für reproduzierbare Läufe."""
     random.seed(seed)
     np.random.seed(seed)
 
 
-def load_split_csv(path: str) -> pd.DataFrame:
+def load_split_csv(path: Path) -> pd.DataFrame:
+    """
+    Lädt einen Split (train/test) aus CSV und validiert Spalten.
+    Erwartete Spalten: url, label (0/1).
+    """
     df = pd.read_csv(path)
+
     required_cols = {"url", "label"}
     missing = required_cols - set(df.columns)
     if missing:
-        raise ValueError(f"Missing columns in {path}: {missing}. Expected at least {required_cols}")
+        raise ValueError(f"Fehlende Spalten in {path}: {missing}. Erwartet: {required_cols}")
+
     df["url"] = df["url"].astype(str)
     df["label"] = df["label"].astype(int)
     return df
 
 
-def ensure_parent_dir(file_path: str) -> None:
-    Path(file_path).parent.mkdir(parents=True, exist_ok=True)
+def ensure_parent_dir(file_path: Path) -> None:
+    """Erstellt den Parent-Ordner für eine Datei, falls nötig."""
+    file_path.parent.mkdir(parents=True, exist_ok=True)
 
 
+def safe_roc_auc(y_true: np.ndarray, y_score: np.ndarray) -> float | None:
+    """
+    ROC-AUC schlägt fehl, wenn im Test nur eine Klasse vorkommt.
+    In dem Fall geben wir None zurück.
+    """
+    unique = np.unique(y_true)
+    if unique.size < 2:
+        return None
+    return float(roc_auc_score(y_true, y_score))
+
+
+def safe_pr_auc(y_true: np.ndarray, y_score: np.ndarray) -> float | None:
+    """
+    PR-AUC ist i.d.R. stabiler, aber auch hier: falls nur eine Klasse vorkommt,
+    ist die Kennzahl nicht sinnvoll.
+    """
+    unique = np.unique(y_true)
+    if unique.size < 2:
+        return None
+    return float(average_precision_score(y_true, y_score))
+
+
+# ============================================================
+# Hauptlogik
+# ============================================================
 def main() -> None:
     set_global_seed(SEED)
 
-    # Load data
+    # Daten laden
+    if not TRAIN_PATH.exists():
+        raise FileNotFoundError(f"Train-Datei nicht gefunden: {TRAIN_PATH}")
+    if not TEST_PATH.exists():
+        raise FileNotFoundError(f"Test-Datei nicht gefunden: {TEST_PATH}")
+
     train_df = load_split_csv(TRAIN_PATH)
     test_df = load_split_csv(TEST_PATH)
 
@@ -72,7 +116,7 @@ def main() -> None:
     X_test = test_df["url"].values
     y_test = test_df["label"].values
 
-    # Model: Char n-gram TF-IDF + Logistic Regression
+    # Modell: TF-IDF (Char-n-grams) + Logistic Regression
     vectorizer = TfidfVectorizer(
         analyzer="char",
         ngram_range=NGRAM_RANGE,
@@ -94,23 +138,23 @@ def main() -> None:
 
     pipe.fit(X_train, y_train)
 
-    # Predictions
+    # Vorhersagen
     y_pred = pipe.predict(X_test)
     y_proba = pipe.predict_proba(X_test)[:, 1]
 
-    # Metrics
-    metrics = {
+    # Metriken
+    metrics: Dict[str, Any] = {
         "accuracy": float(accuracy_score(y_test, y_pred)),
         "precision": float(precision_score(y_test, y_pred, zero_division=0)),
         "recall": float(recall_score(y_test, y_pred, zero_division=0)),
         "f1": float(f1_score(y_test, y_pred, zero_division=0)),
         "mcc": float(matthews_corrcoef(y_test, y_pred)),
-        "roc_auc": float(roc_auc_score(y_test, y_proba)),
-        "pr_auc": float(average_precision_score(y_test, y_proba)),
+        "roc_auc": safe_roc_auc(y_test, y_proba),
+        "pr_auc": safe_pr_auc(y_test, y_proba),
         "confusion_matrix": confusion_matrix(y_test, y_pred).tolist(),  # [[tn, fp],[fn, tp]]
     }
 
-    payload = {
+    payload: Dict[str, Any] = {
         "meta": {
             "seed": SEED,
             "n_train": int(len(train_df)),
@@ -131,7 +175,7 @@ def main() -> None:
                 "max_iter": MAX_ITER,
                 "random_state": SEED,
             },
-            "note": "Character TF-IDF n-gram baseline for URL phishing detection.",
+            "beschreibung": "Char-TF-IDF (2-3) + Logistic Regression Baseline für URL-Phishing-Erkennung.",
         },
         "metrics": metrics,
     }
@@ -140,6 +184,7 @@ def main() -> None:
     with open(OUT_METRICS_PATH, "w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2)
 
+    # Konsolen-Output
     print("===== Char n-gram Baseline (TF-IDF 2-3 grams + LogReg) =====")
     print(f"Saved metrics to: {OUT_METRICS_PATH}")
     print(f"accuracy:  {metrics['accuracy']:.4f}")
@@ -147,8 +192,8 @@ def main() -> None:
     print(f"recall:    {metrics['recall']:.4f}")
     print(f"f1:        {metrics['f1']:.4f}")
     print(f"mcc:       {metrics['mcc']:.4f}")
-    print(f"roc_auc:   {metrics['roc_auc']:.4f}")
-    print(f"pr_auc:    {metrics['pr_auc']:.4f}")
+    print(f"roc_auc:   {metrics['roc_auc'] if metrics['roc_auc'] is not None else 'None'}")
+    print(f"pr_auc:    {metrics['pr_auc'] if metrics['pr_auc'] is not None else 'None'}")
     print(f"confusion_matrix [[tn, fp],[fn,tp]]: {metrics['confusion_matrix']}")
 
 

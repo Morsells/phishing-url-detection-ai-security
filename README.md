@@ -78,7 +78,7 @@ C:\Users\Moritz\miniconda3\envs\phishing-env\python.exe --version
 
 Alle Kommandos unten funktionieren entsprechend auch so:
 
-C:\Users\Moritz\miniconda3\envs\phishing-env\python.exe src/run_all.py
+<CONDA_ROOT>\envs\phishing-env\python.exe src/run_all.py
 
 Daten
 

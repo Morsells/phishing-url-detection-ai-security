@@ -1,24 +1,24 @@
-from pathlib import Path
+from __future__ import annotations
+
 import json
-from typing import Dict, Any, List, Optional
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
-
+from lightgbm import LGBMClassifier
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import (
     accuracy_score,
+    average_precision_score,
+    confusion_matrix,
     f1_score,
+    matthews_corrcoef,
     precision_score,
     recall_score,
     roc_auc_score,
-    average_precision_score,
-    matthews_corrcoef,
-    confusion_matrix,
 )
-from sklearn.ensemble import RandomForestClassifier
 from xgboost import XGBClassifier
-from lightgbm import LGBMClassifier
-
 
 SEED = 42
 
@@ -28,51 +28,74 @@ RESULTS_DIR = BASE_DIR / "results" / "metrics"
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def load_features():
-    """Load engineered feature tables and return train/test matrices."""
+def load_features() -> Tuple[pd.DataFrame, pd.Series, pd.DataFrame, pd.Series]:
+    """
+    Lädt die erzeugten Feature-Tabellen und gibt Train/Test als (X_train, y_train, X_test, y_test) zurück.
+
+    Erwartete Dateien (aus src/features.py):
+      - data/processed/urls_train_features.csv
+      - data/processed/urls_test_features.csv
+    """
     train_path = PROCESSED_DIR / "urls_train_features.csv"
     test_path = PROCESSED_DIR / "urls_test_features.csv"
 
     if not train_path.exists():
-        raise FileNotFoundError(f"Missing file: {train_path}. Run `python src/features.py` first.")
+        raise FileNotFoundError(
+            f"Datei fehlt: {train_path}\n"
+            "Bitte zuerst Features erzeugen: python src/features.py"
+        )
     if not test_path.exists():
-        raise FileNotFoundError(f"Missing file: {test_path}. Run `python src/features.py` first.")
+        raise FileNotFoundError(
+            f"Datei fehlt: {test_path}\n"
+            "Bitte zuerst Features erzeugen: python src/features.py"
+        )
 
     train_df = pd.read_csv(train_path)
     test_df = pd.read_csv(test_path)
 
     required_cols = {"url", "label"}
     if not required_cols.issubset(train_df.columns):
-        raise ValueError(f"Train file missing columns {required_cols}: {train_path}")
+        raise ValueError(f"Train-Datei hat nicht alle Spalten {required_cols}: {train_path}")
     if not required_cols.issubset(test_df.columns):
-        raise ValueError(f"Test file missing columns {required_cols}: {test_path}")
+        raise ValueError(f"Test-Datei hat nicht alle Spalten {required_cols}: {test_path}")
 
-    # URL entfernen → nicht als Feature
+    # URL und Label sind keine Features → url/label entfernen
     X_train = train_df.drop(columns=["url", "label"])
     y_train = train_df["label"].astype(int)
 
     X_test = test_df.drop(columns=["url", "label"])
     y_test = test_df["label"].astype(int)
 
+    # Mini-Check: Feature-Spalten sollten identisch sein
+    if list(X_train.columns) != list(X_test.columns):
+        missing_in_test = [c for c in X_train.columns if c not in X_test.columns]
+        missing_in_train = [c for c in X_test.columns if c not in X_train.columns]
+        raise ValueError(
+            "Train/Test Feature-Spalten passen nicht zusammen.\n"
+            f"Fehlt im Test: {missing_in_test}\n"
+            f"Fehlt im Train: {missing_in_train}"
+        )
+
     return X_train, y_train, X_test, y_test
 
 
-def _safe_predict_proba(model, X) -> Optional[np.ndarray]:
+def _safe_predict_proba(model: Any, X: pd.DataFrame) -> Optional[np.ndarray]:
     """
-    Return probability for class 1 if available, else None.
-    Many tree models provide predict_proba; some models do not.
+    Gibt p(y=1) zurück, falls das Modell predict_proba unterstützt, sonst None.
     """
     if hasattr(model, "predict_proba"):
         proba = model.predict_proba(X)
-        # proba shape: (n_samples, 2)
-        return proba[:, 1]
+        # Erwartete Form: (n_samples, 2) → Index 1 entspricht Klasse "1"
+        if isinstance(proba, np.ndarray) and proba.ndim == 2 and proba.shape[1] >= 2:
+            return proba[:, 1]
     return None
 
 
-def evaluate(model, X_test, y_test, name: str) -> Dict[str, Any]:
-    """Compute standard classification metrics and print a short summary."""
+def evaluate(model: Any, X_test: pd.DataFrame, y_test: pd.Series, name: str) -> Dict[str, Any]:
+    """
+    Berechnet Standard-Metriken und gibt ein Dict zurück (inkl. Confusion Matrix).
+    """
     pred = model.predict(X_test)
-
     proba_1 = _safe_predict_proba(model, X_test)
 
     metrics: Dict[str, Any] = {
@@ -82,16 +105,15 @@ def evaluate(model, X_test, y_test, name: str) -> Dict[str, Any]:
         "recall": float(recall_score(y_test, pred, zero_division=0)),
         "f1": float(f1_score(y_test, pred, zero_division=0)),
         "mcc": float(matthews_corrcoef(y_test, pred)),
-        "confusion_matrix": confusion_matrix(y_test, pred).tolist(),  # [[tn, fp],[fn, tp]]
+        "confusion_matrix": confusion_matrix(y_test, pred).tolist(),  # [[tn, fp], [fn, tp]]
+        "roc_auc": None,
+        "pr_auc": None,
     }
 
-    # AUC metrics require scores/probabilities
+    # AUC-Metriken benötigen Scores/Wahrscheinlichkeiten
     if proba_1 is not None:
         metrics["roc_auc"] = float(roc_auc_score(y_test, proba_1))
         metrics["pr_auc"] = float(average_precision_score(y_test, proba_1))
-    else:
-        metrics["roc_auc"] = None
-        metrics["pr_auc"] = None
 
     print(f"\n===== {name} =====")
     print(f"accuracy:  {metrics['accuracy']:.4f}")
@@ -108,30 +130,30 @@ def evaluate(model, X_test, y_test, name: str) -> Dict[str, Any]:
 
 
 def save_results(results: List[Dict[str, Any]], meta: Dict[str, Any]) -> None:
+    """
+    Speichert die Ergebnisse als JSON: results/metrics/ml_results.json
+    """
     out_path = RESULTS_DIR / "ml_results.json"
-    payload = {
-        "meta": meta,
-        "results": results,
-    }
+    payload = {"meta": meta, "results": results}
     with open(out_path, "w", encoding="utf-8") as f:
-        json.dump(payload, f, indent=2)
+        json.dump(payload, f, indent=2, ensure_ascii=False)
     print(f"\n[+] Ergebnisse gespeichert: {out_path}")
 
 
-def main():
+def main() -> None:
     X_train, y_train, X_test, y_test = load_features()
 
-    meta = {
+    meta: Dict[str, Any] = {
         "seed": SEED,
         "n_train": int(len(y_train)),
         "n_test": int(len(y_test)),
         "positive_rate_train": float(np.mean(y_train)),
         "positive_rate_test": float(np.mean(y_test)),
         "features": list(X_train.columns),
-        "note": "Models trained on engineered URL features from src/features.py",
+        "note": "Modelle auf engineered URL-Features (src/features.py)",
     }
 
-    results = []
+    results: List[Dict[str, Any]] = []
 
     # 1) Random Forest
     rf_params = dict(
@@ -170,6 +192,7 @@ def main():
         learning_rate=0.05,
         num_leaves=64,
         random_state=SEED,
+        n_jobs=-1,
     )
     lgb = LGBMClassifier(**lgb_params)
     lgb.fit(X_train, y_train)

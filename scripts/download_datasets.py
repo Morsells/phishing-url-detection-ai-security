@@ -1,4 +1,3 @@
-import os
 import pathlib
 import csv
 import requests
@@ -8,7 +7,7 @@ RAW_DIR = BASE_DIR / "data" / "raw"
 RAW_DIR.mkdir(parents=True, exist_ok=True)
 
 # 1) GitHub-Dataset mit URLs + Label (phishing_site_urls.csv)
-#    Repo spiegelt ein bekanntes Phishing-URL-Dataset wider. 
+#    Repo spiegelt ein bekanntes Phishing-URL-Dataset wieder. 
 GITHUB_URL_DATASET = (
     "https://raw.githubusercontent.com/ArunBalajiR/"
     "Phishing-URL-Detection/master/dataset/phishing_site_urls.csv"
