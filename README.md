@@ -21,7 +21,7 @@ python -c "import sys; print(sys.executable)"
 python src/run_all.py
 ---
 ## Projektstruktur
-
+```
 ```text
 AbschlussProjekt/
   data/
@@ -197,3 +197,4 @@ results/metrics/bert_results.json (meta.bert_dir)
 Autor
 
 Moritz Bauer
+```
