@@ -7,16 +7,18 @@ Dieses Projekt implementiert und vergleicht mehrere Ansätze zur Erkennung von P
 - **DistilBERT** Fine-Tuning auf URL-Strings
 - **Hybrid-Modell** (LightGBM auf engineered Features + BERT-derived Features)
 
-## Hinweis zur Abgabegröße (Models-Ordner)
+## Quick Start (für Reviewer)
 
-Der Ordner `models/` ist **absichtlich nicht** im ZIP enthalten (zu groß).  
-Beim Ausführen des Projekts wird das BERT-Modell automatisch unter folgendem Pfad erzeugt:
+```bash
+conda create -n phishing-env python=3.11 -y
+conda activate phishing-env
+pip install -r requirements.txt
 
-`models/bert/run_YYYYMMDD_HHMMSS/`
+# Interpreter prüfen (wichtig auf Windows)
+python -c "import sys; print(sys.executable)"
 
-Das Hybrid-Modell lädt automatisch den neuesten BERT-Run oder einen explizit angegebenen `--bert-dir`.
-
----
+# Full pipeline
+python src/run_all.py
 
 ## Projektstruktur
 
