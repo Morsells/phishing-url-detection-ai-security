@@ -48,7 +48,7 @@ AbschlussProjekt/
   README.md
 ```
 
-Voraussetzungen
+## Voraussetzungen
 ```
 Empfohlen: Python 3.11 (oder 3.12)
 (Python 3.13 kann bei ML-Paketen auf Windows Installationsprobleme verursachen.)
@@ -111,7 +111,7 @@ python src/run_all.py --only-classical
 
 ```
 
-Falls BERT auf einem System fehlschlägt, aber die Pipeline weiterlaufen soll:
+## Falls BERT auf einem System fehlschlägt, aber die Pipeline weiterlaufen soll:
 ```text
 python src/run_all.py --allow-bert-fail
 
@@ -144,7 +144,7 @@ python src/collect_results.py
 
 ```
 
-Outputs:
+## Outputs:
 ```text
 results/metrics/summary_results.csv
 
@@ -179,7 +179,7 @@ N_TRAIN erhöhen (z.B. 50000)
 und/oder EPOCHS erhöhen (z.B. 2–3)
 ```
 
-Troubleshooting
+## Troubleshooting
 ```text
 ModuleNotFoundError: No module named 'tabulate'
 
@@ -200,6 +200,6 @@ Nutze stattdessen einen Run-Ordner models/bert/run_*/ oder lese den Pfad aus:
 
 results/metrics/bert_results.json (meta.bert_dir)
 ```
-Autor
+## Autor
 
 Moritz Bauer
