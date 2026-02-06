@@ -20,8 +20,9 @@ python -c "import sys; print(sys.executable)"
 # Full pipeline
 python src/run_all.py
 ---
-## Projektstruktur
+
 ```
+## Projektstruktur
 ```text
 AbschlussProjekt/
   data/
@@ -45,7 +46,8 @@ AbschlussProjekt/
     *.ipynb
   requirements.txt
   README.md
-
+```
+```
 Voraussetzungen
 
 Empfohlen: Python 3.11 (oder 3.12)
@@ -77,7 +79,7 @@ Erwartet (Beispiel):
 Robuste Variante (immer korrekt): explizit env-Python verwenden
 C:\Users\Moritz\miniconda3\envs\phishing-env\python.exe --version
 
-
+```
 Alle Kommandos unten funktionieren entsprechend auch so:
 
 <CONDA_ROOT>\envs\phishing-env\python.exe src/run_all.py
@@ -107,7 +109,7 @@ Nur klassische Modelle (ohne n-grams/BERT):
 
 python src/run_all.py --only-classical
 
-
+```
 Falls BERT auf einem System fehlschlägt, aber die Pipeline weiterlaufen soll:
 
 python src/run_all.py --allow-bert-fail
@@ -139,7 +141,7 @@ python src/train_hybrid.py
 7) Ergebnisse zusammenfassen
 python src/collect_results.py
 
-
+```
 Outputs:
 
 results/metrics/summary_results.csv
@@ -193,7 +195,7 @@ Wenn du im Notebook models/bert/ lädst, kommt ein Fehler, weil dort keine Gewic
 Nutze stattdessen einen Run-Ordner models/bert/run_*/ oder lese den Pfad aus:
 
 results/metrics/bert_results.json (meta.bert_dir)
-
+```
 Autor
 
 Moritz Bauer
