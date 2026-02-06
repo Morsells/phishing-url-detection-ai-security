@@ -79,7 +79,7 @@ Erwartet (Beispiel):
 Robuste Variante (immer korrekt): explizit env-Python verwenden
 C:\Users\Moritz\miniconda3\envs\phishing-env\python.exe --version
 
-```
+```text
 Alle Kommandos unten funktionieren entsprechend auch so:
 
 <CONDA_ROOT>\envs\phishing-env\python.exe src/run_all.py
@@ -110,6 +110,7 @@ Nur klassische Modelle (ohne n-grams/BERT):
 python src/run_all.py --only-classical
 
 ```
+```text
 Falls BERT auf einem System fehlschlägt, aber die Pipeline weiterlaufen soll:
 
 python src/run_all.py --allow-bert-fail
@@ -142,6 +143,7 @@ python src/train_hybrid.py
 python src/collect_results.py
 
 ```
+```text
 Outputs:
 
 results/metrics/summary_results.csv
