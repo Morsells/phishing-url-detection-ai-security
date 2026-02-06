@@ -19,7 +19,7 @@ python -c "import sys; print(sys.executable)"
 
 # Full pipeline
 python src/run_all.py
-
+---
 ## Projektstruktur
 
 ```text
