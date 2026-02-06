@@ -47,9 +47,9 @@ AbschlussProjekt/
   requirements.txt
   README.md
 ```
-```
-Voraussetzungen
 
+Voraussetzungen
+```
 Empfohlen: Python 3.11 (oder 3.12)
 (Python 3.13 kann bei ML-Paketen auf Windows Installationsprobleme verursachen.)
 
@@ -110,9 +110,9 @@ Nur klassische Modelle (ohne n-grams/BERT):
 python src/run_all.py --only-classical
 
 ```
-```text
-Falls BERT auf einem System fehlschlägt, aber die Pipeline weiterlaufen soll:
 
+Falls BERT auf einem System fehlschlägt, aber die Pipeline weiterlaufen soll:
+```text
 python src/run_all.py --allow-bert-fail
 
 Einzelne Schritte (manuell)
@@ -143,9 +143,9 @@ python src/train_hybrid.py
 python src/collect_results.py
 
 ```
-```text
-Outputs:
 
+Outputs:
+```text
 results/metrics/summary_results.csv
 
 results/metrics/summary_results.md
@@ -177,8 +177,10 @@ Sampling: BERT/Hybrid nutzen standardmäßig N_TRAIN=20000 (CPU-freundlich). Fü
 N_TRAIN erhöhen (z.B. 50000)
 
 und/oder EPOCHS erhöhen (z.B. 2–3)
+```
 
 Troubleshooting
+```text
 ModuleNotFoundError: No module named 'tabulate'
 
 Installiere tabulate in deinem Conda-Environment:
@@ -201,4 +203,3 @@ results/metrics/bert_results.json (meta.bert_dir)
 Autor
 
 Moritz Bauer
-```
