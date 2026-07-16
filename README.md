@@ -77,7 +77,7 @@ Erwartet (Beispiel):
 ...\miniconda3\envs\phishing-env\python.exe
 
 Robuste Variante (immer korrekt): explizit env-Python verwenden
-C:\Users\Moritz\miniconda3\envs\phishing-env\python.exe --version
+C:\Users\User\miniconda3\envs\phishing-env\python.exe --version
 
 ```text
 Alle Kommandos unten funktionieren entsprechend auch so:
