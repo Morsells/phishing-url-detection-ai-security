@@ -330,7 +330,6 @@ Additional limitations include:
 * Add automated tests for URL parsing and feature generation.
 * Add GitHub Actions for linting and unit tests.
 * Add command-line configuration for model parameters.
-* Publish confusion matrices and error-category visualizations.
 * Add a small inference command for testing individual URLs.
 * Evaluate temporal generalization on newer phishing campaigns.
 * Compare URL-specific transformer architectures.
