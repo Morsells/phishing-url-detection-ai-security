@@ -1,5 +1,36 @@
+# Python
 __pycache__/
+*.py[cod]
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+.env
+
+# Jupyter
 .ipynb_checkpoints/
-data/raw/
+
+# Raw and generated datasets
+data/raw/*
+data/processed/*
+
+# Keep empty directory structure
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+
+# Trained models
 models/
-results/
+
+# Generated experiment output
+results/generated/
+
+# IDE and operating system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
