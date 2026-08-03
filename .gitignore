@@ -28,6 +28,7 @@ models/
 
 # Generated experiment output
 results/generated/
+results/metrics/
 
 # IDE and operating system files
 .vscode/
