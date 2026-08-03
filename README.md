@@ -50,6 +50,22 @@ The hybrid LightGBM and DistilBERT model achieved the highest recorded F1 score.
 
 These values are historical results from the original project experiment. See [Model Comparison](results/published/model-comparison.md) for the methodology note and evaluation limitations.
 
+## Visual Results
+
+The following figures summarize results from the recorded project experiment.
+
+### Model Comparison
+
+![Recorded F1 scores by model](assets/model-comparison.png)
+
+The transformer-based models achieved substantially higher recorded F1 scores than the classical engineered-feature baselines.
+
+### DistilBERT Error Analysis
+
+![DistilBERT confusion matrix](assets/distilbert-confusion-matrix.png)
+
+The confusion matrix shows the distribution of correct predictions, false positives, and false negatives from the recorded DistilBERT evaluation run.
+
 ## Approaches
 
 ### Engineered URL Features
