@@ -144,7 +144,7 @@ python -m pip install -r requirements.txt
 
 Verify that the expected Python interpreter is active:
 
-```bash
+```markdown
 python -c "import sys; print(sys.executable)"
 ```
 ## Data Sources
