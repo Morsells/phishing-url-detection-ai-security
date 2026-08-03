@@ -15,6 +15,27 @@ The project was developed as an AI Security university project and focuses on th
 * Combined engineered URL features with BERT-derived signals in a hybrid LightGBM model.
 * Included notebooks for data exploration, model comparison, error analysis, and adversarial URL experiments.
 
+## Project Ownership
+
+This was an individual university project developed for an AI Security course.
+
+I independently proposed the project idea and designed and implemented the complete experimental workflow. This included:
+
+* selecting and comparing the machine-learning approaches;
+* preparing and cleaning the datasets;
+* implementing the engineered URL features;
+* training Random Forest, XGBoost, and LightGBM models;
+* implementing the character n-gram baseline;
+* fine-tuning DistilBERT on URL strings;
+* developing the hybrid LightGBM and BERT approach;
+* evaluating and comparing the models;
+* performing error analysis and adversarial URL experiments;
+* creating the supporting scripts, notebooks, and documentation.
+
+The URL datasets were obtained from publicly available sources. I did not create or manually collect the labeled URLs. The project idea, model selection, preprocessing, implementation, experimentation, evaluation, and documentation were completed independently.
+
+This project was created as a practical student project and is not intended to represent a production-ready phishing detection system.
+
 ## Recorded Results
 
 | Model                  |   Accuracy |   F1 Score |    ROC-AUC |     PR-AUC |
@@ -126,6 +147,14 @@ Verify that the expected Python interpreter is active:
 ```bash
 python -c "import sys; print(sys.executable)"
 ```
+## Data Sources
+
+The project uses publicly available URL datasets for training and evaluation:
+
+* a labeled phishing URL dataset obtained from a public GitHub repository;
+* the OpenPhish community feed as an additional source of phishing URLs.
+
+The datasets were not created as part of this project. My work focused on the project concept, data preparation, feature engineering, model development, experimentation, evaluation, and analysis.
 
 ## Dataset Preparation
 
